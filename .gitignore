@@ -11,3 +11,10 @@
 *.lai
 *.la
 *.a
+
+rm_reads.config
+rm_reads.creator
+rm_reads.creator.user
+rm_reads.files
+rm_reads.includes
+*.fastq

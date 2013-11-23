@@ -10,10 +10,11 @@ enum ReadType{
     n,
     polyG,
     polyC,
-    length
+    length,
+    dust
 };
 
-void init_type_names(int length, int polyG);
+void init_type_names(int length, int polyG, int dust_k, int dust_cutoff);
 const std::string & get_type_name (ReadType type);
 
 class Seq {

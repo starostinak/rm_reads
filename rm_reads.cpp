@@ -9,6 +9,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <boost/lexical_cast.hpp>
+#include <unordered_map>
 
 #include "search.h"
 #include "stats.h"
@@ -45,21 +46,51 @@ void build_patterns(std::ifstream & kmers_f, int polyG, std::vector <std::pair <
     }
 }
 
-ReadType check_read(std::string const & read, Node * root, unsigned int length)
+double get_dust_score(std::string const & read, int k)
 {
-    if (read.size() < length) {
+    std::unordered_map <int, int> counts;
+    static std::unordered_map <char, int> hashes = {{'n', 0}, {'N', 1},
+                                          {'a', 2}, {'A', 3},
+                                          {'c', 4}, {'C', 5},
+                                          {'g', 6}, {'G', 7},
+                                          {'t', 8}, {'T', 9}};
+    unsigned int hash = 0;
+    unsigned int max_pow = pow(10, k - 1);
+    for (auto it = read.begin(); it != read.end(); ++it) {
+        hash = hash * 10 + hashes[*it];
+        if (it - read.begin() >= k - 1) {
+            ++counts[hash];
+            hash = hash - (hash / max_pow) * max_pow;
+        }
+    }
+    double score = 0;
+    double total = 0;
+    for (auto it = counts.begin(); it != counts.end(); ++it) {
+        score += it->second * (it->second - 1) / 2;
+        total += score;
+    }
+    return (total / (read.size() - k + 1));
+}
+
+ReadType check_read(std::string const & read, Node * root, unsigned int length, int dust_k, int dust_cutoff)
+{
+    if (length && read.size() < length) {
         return ReadType::length;
     } 
+    if (dust_cutoff && get_dust_score(read, dust_k) > dust_cutoff) {
+        return ReadType::dust;
+    }
+
     return (ReadType)search_any(read, root); 
 }
 
 void filter_single_reads(std::ifstream & reads_f, std::ofstream & ok_f, std::ofstream & bad_f, 
-                         Stats & stats, Node * root, int length)
+                         Stats & stats, Node * root, int length, int dust_k, int dust_cutoff)
 {
     Seq read;
 
     while (read.read_seq(reads_f)) {
-        ReadType type = check_read(read.seq, root, length);
+        ReadType type = check_read(read.seq, root, length, dust_k, dust_cutoff);
         stats.update(type);
         if (type == ReadType::ok) {
             read.write_seq(ok_f);
@@ -75,14 +106,14 @@ void filter_paired_reads(std::ifstream & reads1_f, std::ifstream & reads2_f,
                          std::ofstream & bad1_f, std::ofstream & bad2_f,
                          std::ofstream & se1_f, std::ofstream & se2_f,
                          Stats & stats1, Stats & stats2,
-                         Node * root, int length)
+                         Node * root, int length, int dust_k, int dust_cutoff)
 {
     Seq read1;
     Seq read2;
 
     while (read1.read_seq(reads1_f) && read2.read_seq(reads2_f)) {
-        ReadType type1 = check_read(read1.seq, root, length);
-        ReadType type2 = check_read(read2.seq, root, length);
+        ReadType type1 = check_read(read1.seq, root, length, dust_k, dust_cutoff);
+        ReadType type2 = check_read(read2.seq, root, length, dust_k, dust_cutoff);
         if (type1 == ReadType::ok && type2 == ReadType::ok) {
             read1.write_seq(ok1_f);
             read2.write_seq(ok2_f);
@@ -125,7 +156,7 @@ std::string basename(std::string const & path)
 
 void print_help() 
 {
-    std::cout << "./rm_reads [-i raw_data.fastq | -1 raw_data1.fastq -2 raw_data2.fastq] -o output_dir --polyG 13 --length 50 --adapters adapters.dat" << std::endl;
+    std::cout << "./rm_reads [-i raw_data.fastq | -1 raw_data1.fastq -2 raw_data2.fastq] -o output_dir --polyG 13 --length 50 --adapters adapters.dat --dust_cutoff cutoff --dust_k k" << std::endl;
 }
 
 int main(int argc, char ** argv)
@@ -138,11 +169,15 @@ int main(int argc, char ** argv)
     char rez = 0;
     int length = 0;
     int polyG = 0;
+    int dust_k = 4;
+    int dust_cutoff = 0;
 
     const struct option long_options[] = {
         {"length",required_argument,NULL,'l'},
         {"polyG",required_argument,NULL,'p'},
         {"adapters",required_argument,NULL,'a'},
+        {"dust_k",required_argument,NULL,'k'},
+        {"dust_cutoff",required_argument,NULL,'c'},
         {NULL,0,NULL,0}
     };
 
@@ -169,6 +204,12 @@ int main(int argc, char ** argv)
         case 'o':
             out_dir = optarg;
             break;
+        case 'c':
+            dust_cutoff = boost::lexical_cast<int>(optarg);
+            break;
+        case 'k':
+            dust_k = boost::lexical_cast<int>(optarg);
+            break;
         case '?':
             print_help();
             return -1;
@@ -189,7 +230,7 @@ int main(int argc, char ** argv)
         return -1;
     }
 
-    init_type_names(length, polyG);
+    init_type_names(length, polyG, dust_k, dust_cutoff);
 
     build_patterns(kmers_f, polyG, patterns);
 
@@ -227,7 +268,7 @@ int main(int argc, char ** argv)
 
         Stats stats(reads);
 
-        filter_single_reads(reads_f, ok_f, bad_f, stats, &root, length);
+        filter_single_reads(reads_f, ok_f, bad_f, stats, &root, length, dust_k, dust_cutoff);
 
         std::cout << stats;
 
@@ -271,7 +312,7 @@ int main(int argc, char ** argv)
         filter_paired_reads(reads1_f, reads2_f, ok1_f, ok2_f,
                             bad1_f, bad2_f, se1_f, se2_f,
                             stats1, stats2,
-                            &root, length);
+                            &root, length, dust_k, dust_cutoff);
 
         std::cout << stats1;
         std::cout << stats2;
