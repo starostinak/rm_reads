@@ -25,11 +25,7 @@ void build_patterns(std::ifstream & kmers_f, int polyG, std::vector <std::pair <
             size_t tab = tmp.find('\t');
             if (tab == std::string::npos) {
                 patterns.push_back(std::make_pair(tmp, Node::Type::adapter));
-                std::transform(tmp.begin(), tmp.end(), tmp.begin(), ::tolower);
-                patterns.push_back(std::make_pair(tmp, Node::Type::adapter));
             } else {
-                patterns.push_back(std::make_pair(tmp.substr(0, tab), Node::Type::adapter));
-                std::transform(tmp.begin(), tmp.end(), tmp.begin(), ::tolower);
                 patterns.push_back(std::make_pair(tmp.substr(0, tab), Node::Type::adapter));
             }
         }
@@ -37,27 +33,25 @@ void build_patterns(std::ifstream & kmers_f, int polyG, std::vector <std::pair <
     kmers_f.close();
 
     patterns.push_back(std::make_pair("N", Node::Type::n));
-    patterns.push_back(std::make_pair("n", Node::Type::n));
     if (polyG) {
         patterns.push_back(std::make_pair(std::string(polyG, 'G'), Node::Type::polyG));
         patterns.push_back(std::make_pair(std::string(polyG, 'C'), Node::Type::polyC));
-        patterns.push_back(std::make_pair(std::string(polyG, 'g'), Node::Type::polyG));
-        patterns.push_back(std::make_pair(std::string(polyG, 'c'), Node::Type::polyC));
     }
 }
 
 double get_dust_score(std::string const & read, int k)
 {
     std::unordered_map <int, int> counts;
-    static std::unordered_map <char, int> hashes = {{'n', 0}, {'N', 1},
-                                          {'a', 2}, {'A', 3},
-                                          {'c', 4}, {'C', 5},
-                                          {'g', 6}, {'G', 7},
-                                          {'t', 8}, {'T', 9}};
+    static std::unordered_map <char, int> hashes = {{'N', 1},
+                                          {'A', 2},
+                                          {'C', 3},
+                                          {'G', 4},
+                                          {'T', 5}};
     unsigned int hash = 0;
     unsigned int max_pow = pow(10, k - 1);
     for (auto it = read.begin(); it != read.end(); ++it) {
-        hash = hash * 10 + hashes[*it];
+        char c = (*it > 96) ? (*it - 32) : *it;
+        hash = hash * 10 + hashes[c];
         if (it - read.begin() >= k - 1) {
             ++counts[hash];
             hash = hash - (hash / max_pow) * max_pow;
@@ -69,6 +63,7 @@ double get_dust_score(std::string const & read, int k)
         score += it->second * (it->second - 1) / 2;
         total += score;
     }
+//    std::cout << (total / (read.size() - k + 1)) << std::endl;
     return (total / (read.size() - k + 1));
 }
 

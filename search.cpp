@@ -80,7 +80,8 @@ Node::Type search_any(const std::string & text, Node * root)
     size_t text_len = text.size();
     Node * curr = root;
     for (size_t i = 0; i < text_len; ++i) {
-        go(curr, text[i]);
+        char c = (text[i] > 96) ? text[i] - 32 : text[i];
+        go(curr, c);
         Node::Type match_type = has_match(curr, i);
         if(match_type) {
             return match_type;
