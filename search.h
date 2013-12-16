@@ -2,10 +2,10 @@
 #define SEARCH_H
 
 #include <vector>
+#include <list>
+#include <map>
 #include <string>
 #include <cstddef>
-
-extern unsigned int last_id;
 
 class Node
 {
@@ -19,9 +19,9 @@ public:
         polyC
     };
 
-    Node() : fail(NULL), id(last_id++), type(Type::no_match) {}
+    Node() : fail(NULL), type(Type::no_match) {}
     Node(char label) :
-        label(label), fail(NULL), id(last_id++), type(Type::no_match)
+        label(label), fail(NULL), type(Type::no_match)
     {}
 
     Node * next(char c)
@@ -33,18 +33,30 @@ public:
         return NULL;
     }
 
+    void update_node_stats(Type t, size_t adapt_id, size_t adapt_pos)
+    {
+        type = t;
+        adapter_id_pos.push_back(std::make_pair(adapt_id, adapt_pos));
+    }
+
     char label;
     Node * fail;
-    int id;
     Type type;
+    std::list <std::pair <size_t, size_t> > adapter_id_pos;
     std::vector <Node *> links;
 };
 
 void build_trie(Node & root,
-                std::vector <std::pair <std::string, Node::Type> > const & patterns);
+                std::vector <std::pair <std::string, Node::Type> > const & patterns,
+                int errors = 0);
 void add_failures(Node & root);
 void go(Node * & curr, char c);
-Node::Type has_match(Node * node, int pos);
+Node::Type find_match(Node * node);
+Node::Type find_all_matches(Node * node, size_t pos,
+                      std::map <size_t, std::vector <std::pair<size_t, size_t> > > & matches,
+                      size_t errors);
+Node::Type search_inexact(const std::string & text, Node * root,
+                          std::vector <std::pair<std::string, Node::Type> > const & patterns, int errors);
 Node::Type search_any(const std::string & text, Node * root);
 
 #endif // SEARCH_H
