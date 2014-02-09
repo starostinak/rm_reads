@@ -38,7 +38,7 @@ public:
     {
         fout << id << std::endl;
         fout << seq << std::endl;
-        fout << '+' << id.substr(1) << std::endl;
+        fout << '+' << std::endl;
         fout << qual << std::endl;
     }
 

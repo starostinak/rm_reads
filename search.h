@@ -24,6 +24,13 @@ public:
         label(label), fail(NULL), type(Type::no_match)
     {}
 
+    ~Node()
+    {
+        for (auto it = links.begin(); it != links.end(); ++it) {
+            delete *it;
+        }
+    }
+
     Node * next(char c)
     {
         for (size_t i = 0; i < links.size(); ++i) {

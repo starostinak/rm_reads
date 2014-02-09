@@ -8,7 +8,6 @@
 #include <locale>
 #include <getopt.h>
 #include <stdlib.h>
-#include <boost/lexical_cast.hpp>
 #include <unordered_map>
 
 #include "search.h"
@@ -163,8 +162,8 @@ void print_help()
 
 int main(int argc, char ** argv)
 {
-	Node root('0');
-	std::vector <std::pair<std::string, Node::Type> > patterns;
+    Node root('0');
+    std::vector <std::pair<std::string, Node::Type> > patterns;
 
     std::string kmers, reads, out_dir;
     std::string reads1, reads2;
@@ -188,10 +187,11 @@ int main(int argc, char ** argv)
     while ((rez = getopt_long(argc, argv, "1:2:l:p:a:i:o:e:", long_options, NULL)) != -1) {
         switch (rez) {
         case 'l':
-            length = boost::lexical_cast<int>(optarg);
+            length = std::atoi(optarg);
             break;
         case 'p':
-            polyG = boost::lexical_cast<int>(optarg);
+            polyG = std::atoi(optarg);
+            // polyG = boost::lexical_cast<int>(optarg);
             break;
         case 'a':
             kmers = optarg;
@@ -209,13 +209,13 @@ int main(int argc, char ** argv)
             out_dir = optarg;
             break;
         case 'c':
-            dust_cutoff = boost::lexical_cast<int>(optarg);
+            dust_cutoff = std::atoi(optarg);
             break;
         case 'k':
-            dust_k = boost::lexical_cast<int>(optarg);
+            dust_k = std::atoi(optarg);
             break;
         case 'e':
-            errors = boost::lexical_cast<int>(optarg);
+            errors = std::atoi(optarg);
             break;
         case '?':
             print_help();
