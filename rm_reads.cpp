@@ -237,7 +237,7 @@ int main(int argc, char ** argv)
 
     std::ifstream kmers_f (kmers.c_str());
     if (!kmers_f.good()) {
-        std::cout << "kmers file is bad" << std::endl;
+        std::cout << "Cannot open kmers file" << std::endl;
         print_help();
         return -1;
     }
@@ -264,16 +264,16 @@ int main(int argc, char ** argv)
         std::string reads_base = basename(reads);
         std::ifstream reads_f (reads.c_str());
         std::ofstream ok_f((out_dir + "/" + reads_base + ".ok.fastq").c_str(), std::ofstream::out);
-        std::ofstream bad_f((out_dir + "/" + reads_base + ".bad.fastq").c_str(), std::ofstream::out);
+        std::ofstream bad_f((out_dir + "/" + reads_base + ".filtered.fastq").c_str(), std::ofstream::out);
 
         if (!reads_f.good()) {
-            std::cout << "reads file is bad" << std::endl;
+            std::cout << "Cannot open reads file" << std::endl;
             print_help();
             return -1;
         }
 
         if (!ok_f.good() || !bad_f.good()) {
-            std::cout << "out file is bad" << std::endl;
+            std::cout << "Cannot open output file" << std::endl;
             print_help();
             return -1;
         }
@@ -300,9 +300,9 @@ int main(int argc, char ** argv)
                             std::ofstream::out);
         std::ofstream se2_f((out_dir + "/" + reads2_base + ".se.fastq").c_str(),
                             std::ofstream::out);
-        std::ofstream bad1_f((out_dir + "/" + reads1_base + ".bad.fastq").c_str(),
+        std::ofstream bad1_f((out_dir + "/" + reads1_base + ".filtered.fastq").c_str(),
                             std::ofstream::out);
-        std::ofstream bad2_f((out_dir + "/" + reads2_base + ".bad.fastq").c_str(),
+        std::ofstream bad2_f((out_dir + "/" + reads2_base + ".filtered.fastq").c_str(),
                             std::ofstream::out);
 
         if (!reads1_f.good() || !reads2_f.good()) {
