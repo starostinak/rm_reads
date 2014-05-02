@@ -36,10 +36,10 @@ public:
 
     void write_seq(std::ofstream & fout)
     {
-        fout << id << std::endl;
-        fout << seq << std::endl;
-        fout << '+' << std::endl;
-        fout << qual << std::endl;
+        fout << id << '\n';
+        fout << seq << '\n';
+        fout << '+' << '\n';
+        fout << qual << '\n';
     }
 
     void update_id(ReadType type)

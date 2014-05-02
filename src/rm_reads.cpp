@@ -14,7 +14,7 @@
 #include "stats.h"
 #include "seq.h"
 
-void build_patterns(std::ifstream & kmers_f, int polyG, std::vector <std::pair <std::string, Node::Type> > & patterns)
+void build_patterns(std::ifstream & kmers_f, std::vector <std::pair <std::string, Node::Type> > & patterns, int polyG, bool filterN)
 {
     std::string tmp;
     while (!kmers_f.eof()) {
@@ -31,7 +31,9 @@ void build_patterns(std::ifstream & kmers_f, int polyG, std::vector <std::pair <
     }
     kmers_f.close();
 
-    patterns.push_back(std::make_pair("N", Node::Type::n));
+    if (filterN) {
+        patterns.push_back(std::make_pair("N", Node::Type::n));
+    }
     if (polyG) {
         patterns.push_back(std::make_pair(std::string(polyG, 'G'), Node::Type::polyG));
         patterns.push_back(std::make_pair(std::string(polyG, 'C'), Node::Type::polyC));
@@ -168,23 +170,26 @@ int main(int argc, char ** argv)
     std::string kmers, reads, out_dir;
     std::string reads1, reads2;
     char rez = 0;
-    int length = 0;
-    int polyG = 0;
+    int length = 50;
+    int polyG = 13;
     int dust_k = 4;
     int dust_cutoff = 0;
     int errors = 0;
+    bool filterN = false;
 
     const struct option long_options[] = {
+        {"help", no_argument, NULL, 'h'},
         {"length",required_argument,NULL,'l'},
         {"polyG",required_argument,NULL,'p'},
         {"adapters",required_argument,NULL,'a'},
         {"dust_k",required_argument,NULL,'k'},
         {"dust_cutoff",required_argument,NULL,'c'},
-        {"errors",required_argument,NULL,'e'},
+        {"errors", required_argument, NULL, 'e'},
+        {"filterN", no_argument, NULL, 'N'},
         {NULL,0,NULL,0}
     };
 
-    while ((rez = getopt_long(argc, argv, "1:2:l:p:a:i:o:e:", long_options, NULL)) != -1) {
+    while ((rez = getopt_long(argc, argv, "hN1:2:l:p:a:i:o:e:", long_options, NULL)) != -1) {
         switch (rez) {
         case 'l':
             length = std::atoi(optarg);
@@ -217,14 +222,18 @@ int main(int argc, char ** argv)
         case 'e':
             errors = std::atoi(optarg);
             break;
+        case 'N':
+            filterN = true;
+            break;
         case '?':
+        case 'h':
             print_help();
             return -1;
         }
     }
 
     if (errors < 0 || errors > 2) {
-        std::cout << "possible errors count are 0, 1, 2" << std::endl;
+        std::cerr << "possible errors count are 0, 1, 2" << std::endl;
         return -1;
     }
 
@@ -237,14 +246,14 @@ int main(int argc, char ** argv)
 
     std::ifstream kmers_f (kmers.c_str());
     if (!kmers_f.good()) {
-        std::cout << "Cannot open kmers file" << std::endl;
+        std::cerr << "Cannot open kmers file" << std::endl;
         print_help();
         return -1;
     }
 
     init_type_names(length, polyG, dust_k, dust_cutoff);
 
-    build_patterns(kmers_f, polyG, patterns);
+    build_patterns(kmers_f, patterns, polyG, filterN);
 
 /*
     for (std::vector <std::string> ::iterator it = patterns.begin(); it != patterns.end(); ++it) {
@@ -253,7 +262,7 @@ int main(int argc, char ** argv)
     */
 
     if (patterns.empty()) {
-        std::cout << "patterns are empty" << std::endl;
+        std::cerr << "patterns are empty" << std::endl;
         return -1;
     }
 
@@ -267,13 +276,13 @@ int main(int argc, char ** argv)
         std::ofstream bad_f((out_dir + "/" + reads_base + ".filtered.fastq").c_str(), std::ofstream::out);
 
         if (!reads_f.good()) {
-            std::cout << "Cannot open reads file" << std::endl;
+            std::cerr << "Cannot open reads file" << std::endl;
             print_help();
             return -1;
         }
 
         if (!ok_f.good() || !bad_f.good()) {
-            std::cout << "Cannot open output file" << std::endl;
+            std::cerr << "Cannot open output file" << std::endl;
             print_help();
             return -1;
         }
@@ -306,14 +315,14 @@ int main(int argc, char ** argv)
                             std::ofstream::out);
 
         if (!reads1_f.good() || !reads2_f.good()) {
-            std::cout << "reads file is bad" << std::endl;
+            std::cerr << "reads file is bad" << std::endl;
             print_help();
             return -1;
         }
 
         if (!ok1_f.good() || !ok2_f.good() || !bad1_f.good() || !bad2_f.good() ||
                 !se1_f.good() || !se2_f.good()) {
-            std::cout << "out file is bad" << std::endl;
+            std::cerr << "out file is bad" << std::endl;
             print_help();
             return -1;
         }
