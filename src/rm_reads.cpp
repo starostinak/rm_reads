@@ -14,7 +14,7 @@
 #include "stats.h"
 #include "seq.h"
 
-void build_patterns(std::ifstream & kmers_f, std::vector <std::pair <std::string, Node::Type> > & patterns, int polyG, bool filterN)
+void build_patterns(std::ifstream & kmers_f, std::vector <std::pair <std::string, Node::Type> > & patterns, int polyG, bool ignoreN)
 {
     std::string tmp;
     while (!kmers_f.eof()) {
@@ -31,7 +31,7 @@ void build_patterns(std::ifstream & kmers_f, std::vector <std::pair <std::string
     }
     kmers_f.close();
 
-    if (filterN) {
+    if (!ignoreN) {
         patterns.push_back(std::make_pair("N", Node::Type::n));
     }
     if (polyG) {
@@ -159,7 +159,7 @@ std::string basename(std::string const & path)
 
 void print_help() 
 {
-    std::cout << "./rm_reads [-i raw_data.fastq | -1 raw_data1.fastq -2 raw_data2.fastq] -o output_dir --polyG 13 --length 50 --adapters adapters.dat --dust_cutoff cutoff --dust_k k -e 1 -N" << std::endl;
+    std::cout << "./rm_reads [-i raw_data.fastq | -1 raw_data1.fastq -2 raw_data2.fastq] -o output_dir --polyG 13 --length 50 --adapters adapters.dat --dust_cutoff cutoff --dust_k k -e 1 --ignoreN" << std::endl;
 }
 
 int main(int argc, char ** argv)
@@ -175,7 +175,7 @@ int main(int argc, char ** argv)
     int dust_k = 4;
     int dust_cutoff = 0;
     int errors = 0;
-    bool filterN = false;
+    bool ignoreN = false;
 
     const struct option long_options[] = {
         {"help", no_argument, NULL, 'h'},
@@ -185,7 +185,7 @@ int main(int argc, char ** argv)
         {"dust_k",required_argument,NULL,'k'},
         {"dust_cutoff",required_argument,NULL,'c'},
         {"errors", required_argument, NULL, 'e'},
-        {"filterN", no_argument, NULL, 'N'},
+        {"ignoreN", no_argument, NULL, 'N'},
         {NULL,0,NULL,0}
     };
 
@@ -223,7 +223,7 @@ int main(int argc, char ** argv)
             errors = std::atoi(optarg);
             break;
         case 'N':
-            filterN = true;
+            ignoreN = true;
             break;
         case '?':
         case 'h':
@@ -253,7 +253,7 @@ int main(int argc, char ** argv)
 
     init_type_names(length, polyG, dust_k, dust_cutoff);
 
-    build_patterns(kmers_f, patterns, polyG, filterN);
+    build_patterns(kmers_f, patterns, polyG, ignoreN);
 
 /*
     for (std::vector <std::string> ::iterator it = patterns.begin(); it != patterns.end(); ++it) {
@@ -267,7 +267,7 @@ int main(int argc, char ** argv)
     }
 
     build_trie(root, patterns, errors);
-	add_failures(root);
+    add_failures(root);
 
     if (!reads.empty()) {
         std::string reads_base = basename(reads);
