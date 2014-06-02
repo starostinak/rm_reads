@@ -159,7 +159,18 @@ std::string basename(std::string const & path)
 
 void print_help() 
 {
-    std::cout << "./rm_reads [-i raw_data.fastq | -1 raw_data1.fastq -2 raw_data2.fastq] -o output_dir --polyG 13 --length 50 --adapters adapters.dat --dust_cutoff cutoff --dust_k k -e 1 -N" << std::endl;
+    std::cerr << "Usage:\n./rm_reads [-i raw_data.fastq | -1 raw_data1.fastq -2 raw_data2.fastq] -o output_dir --polyG 13 --length 50 --adapters adapters.dat --dust_cutoff cutoff --dust_k k -e 1 -N\n"
+        << "\nOptions:\n"
+        << "\t-i\t\tinput file \n"
+        << "\t-1\t\tfirst input file for paired reads\n"
+        << "\t-2\t\tsecond input file for paired reads\n"
+        << "\t-o\t\toutput directory\n"
+        << "\t--polyG, -p\tlength of polyG/polyC tails\n"
+        << "\t--adapters, -a\tfile with adapter kmers\n"
+        << "\t--dust_k, -k\twindow size for dust filter\n"
+        << "\t--dust_cutoff, -c\tcutoff by dust score\n"
+        << "\t--errors, -e\tmaximum error count in match, possible values - 1, 2\n"
+        << "\t--filterN, -N\tallow filter by N's in reads" << std::endl;
 }
 
 int main(int argc, char ** argv)
