@@ -136,7 +136,7 @@ bool cmp_upper(char i, char j)
     return std::toupper(i) == std::toupper(j);
 }
 
-int count_errors(std::string const & text, size_t text_pos,
+int count_errors(std::string const & text, int text_pos,
                  std::string const & pattern, size_t pattern_pos,
                  size_t length, int err_max)
 {

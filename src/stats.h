@@ -10,6 +10,7 @@
 class Stats
 {
 public:
+    Stats() {}
     Stats(std::string const & filename) : filename(filename), complete(0), pe(0), se(0) {}
 
     void update(ReadType type, bool paired = false);

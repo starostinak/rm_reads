@@ -47,6 +47,12 @@ public:
         id.insert(1, get_type_name(type) + "__");
     }
 
+    std::string const & get_seq() const
+    {
+        return seq;
+    }
+
+private:
     std::string id;
     std::string seq;
     std::string qual;

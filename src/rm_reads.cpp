@@ -13,6 +13,128 @@
 #include "search.h"
 #include "stats.h"
 #include "seq.h"
+#include "rm_reads.h"
+
+#define LENGTH_CUTOFF 50
+#define DUST_K 4
+#define POLYG 13
+
+struct FilterCmd {
+    FilterCmd()
+        : reads1_fp(nullptr), reads2_fp(nullptr),
+          ok1_fp(nullptr), ok2_fp(nullptr), bad1_fp(nullptr), bad2_fp(nullptr),
+          se1_fp(nullptr), se2_fp(nullptr),
+          stats1(), stats2(), root(nullptr),
+          length(LENGTH_CUTOFF), dust_k(DUST_K), dust_cutoff(0),
+          errors(0) {}
+
+private:
+
+    ReadType check_read(std::string const & read, std::vector <std::pair<std::string, Node::Type> > const & patterns)
+    {
+        if (length && read.size() < length) {
+            return ReadType::length;
+        }
+        if (dust_cutoff && get_dust_score(read, dust_k) > dust_cutoff) {
+            return ReadType::dust;
+        }
+
+        if (errors) {
+            return (ReadType)search_inexact(read, root, patterns, errors);
+        } else {
+            return (ReadType)search_any(read, root);
+        }
+    }
+
+    void filter_single_reads(std::vector <std::pair<std::string, Node::Type> > const & patterns)
+    {
+        Seq read;
+
+        std::ifstream & reads_f = *reads1_fp;
+        std::ofstream & ok_f = *ok1_fp;
+        std::ofstream & bad_f = *bad1_fp;
+
+        while (read.read_seq(reads_f)) {
+            ReadType type = check_read(read.get_seq(), patterns);
+            stats1.update(type);
+            if (type == ReadType::ok) {
+                read.write_seq(ok_f);
+            } else {
+                read.update_id(type);
+                read.write_seq(bad_f);
+            }
+        }
+    }
+
+    void filter_paired_reads(std::vector <std::pair<std::string, Node::Type> > const & patterns)
+    {
+        Seq read1;
+        Seq read2;
+
+        std::ifstream & reads1_f = *reads1_fp;
+        std::ifstream & reads2_f = *reads2_fp;
+        std::ofstream & ok1_f = *ok1_fp;
+        std::ofstream & ok2_f = *ok2_fp;
+        std::ofstream & se1_f = *se1_fp;
+        std::ofstream & se2_f = *se2_fp;
+        std::ofstream & bad1_f = *bad1_fp;
+        std::ofstream & bad2_f = *bad2_fp;
+
+        while (read1.read_seq(reads1_f) && read2.read_seq(reads2_f)) {
+            ReadType type1 = check_read(read1.get_seq(), patterns);
+            ReadType type2 = check_read(read2.get_seq(), patterns);
+            if (type1 == ReadType::ok && type2 == ReadType::ok) {
+                read1.write_seq(ok1_f);
+                read2.write_seq(ok2_f);
+                stats1.update(type1, true);
+                stats2.update(type2, true);
+            } else {
+                stats1.update(type1, false);
+                stats2.update(type2, false);
+                if (type1 == ReadType::ok) {
+                    read1.write_seq(se1_f);
+                    read2.update_id(type2);
+                    read2.write_seq(bad2_f);
+                } else if (type2 == ReadType::ok) {
+                    read1.update_id(type1);
+                    read1.write_seq(bad1_f);
+                    read2.write_seq(se2_f);
+                } else {
+                    read1.update_id(type1);
+                    read2.update_id(type2);
+                    read1.write_seq(bad1_f);
+                    read2.write_seq(bad2_f);
+                }
+            }
+        }
+    }
+
+public:
+
+    void filter_reads(std::vector <std::pair<std::string, Node::Type> > const & patterns) {
+        if (reads2_fp == nullptr) {
+            filter_single_reads(patterns);
+        } else {
+            filter_paired_reads(patterns);
+        }
+    }
+
+    std::ifstream * reads1_fp;
+    std::ifstream * reads2_fp;
+    std::ofstream * ok1_fp;
+    std::ofstream * ok2_fp;
+    std::ofstream * bad1_fp;
+    std::ofstream * bad2_fp;
+    std::ofstream * se1_fp;
+    std::ofstream * se2_fp;
+    Stats stats1;
+    Stats stats2;
+    Node * root;
+    size_t length;
+    int dust_k;
+    int dust_cutoff;
+    int errors;
+};
 
 void build_patterns(std::ifstream & kmers_f, std::vector <std::pair <std::string, Node::Type> > & patterns, int polyG, bool filterN)
 {
@@ -51,7 +173,7 @@ double get_dust_score(std::string const & read, int k)
     unsigned int hash = 0;
     unsigned int max_pow = pow(10, k - 1);
     for (auto it = read.begin(); it != read.end(); ++it) {
-        char c = (*it > 96) ? (*it - 32) : *it;
+        char c = std::toupper(*it);
         hash = hash * 10 + hashes[c];
         if (it - read.begin() >= k - 1) {
             ++counts[hash];
@@ -66,81 +188,6 @@ double get_dust_score(std::string const & read, int k)
     }
 //    std::cout << (total / (read.size() - k + 1)) << std::endl;
     return (total / (read.size() - k + 1));
-}
-
-ReadType check_read(std::string const & read, Node * root, std::vector <std::pair<std::string, Node::Type> > const & patterns,
-                    unsigned int length, int dust_k, int dust_cutoff, int errors)
-{
-    if (length && read.size() < length) {
-        return ReadType::length;
-    } 
-    if (dust_cutoff && get_dust_score(read, dust_k) > dust_cutoff) {
-        return ReadType::dust;
-    }
-
-    if (errors) {
-        return (ReadType)search_inexact(read, root, patterns, errors);
-    } else {
-        return (ReadType)search_any(read, root);
-    }
-}
-
-void filter_single_reads(std::ifstream & reads_f, std::ofstream & ok_f, std::ofstream & bad_f, 
-                         Stats & stats, Node * root, std::vector <std::pair<std::string, Node::Type> > const & patterns,
-                         int length, int dust_k, int dust_cutoff, int errors)
-{
-    Seq read;
-
-    while (read.read_seq(reads_f)) {
-        ReadType type = check_read(read.seq, root, patterns, length, dust_k, dust_cutoff, errors);
-        stats.update(type);
-        if (type == ReadType::ok) {
-            read.write_seq(ok_f);
-        } else {
-            read.update_id(type);
-            read.write_seq(bad_f);
-        }
-    }
-}
-
-void filter_paired_reads(std::ifstream & reads1_f, std::ifstream & reads2_f,
-                         std::ofstream & ok1_f, std::ofstream & ok2_f,
-                         std::ofstream & bad1_f, std::ofstream & bad2_f,
-                         std::ofstream & se1_f, std::ofstream & se2_f,
-                         Stats & stats1, Stats & stats2,
-                         Node * root, std::vector <std::pair<std::string, Node::Type> > const & patterns,
-                         int length, int dust_k, int dust_cutoff, int errors)
-{
-    Seq read1;
-    Seq read2;
-
-    while (read1.read_seq(reads1_f) && read2.read_seq(reads2_f)) {
-        ReadType type1 = check_read(read1.seq, root, patterns, length, dust_k, dust_cutoff, errors);
-        ReadType type2 = check_read(read2.seq, root, patterns, length, dust_k, dust_cutoff, errors);
-        if (type1 == ReadType::ok && type2 == ReadType::ok) {
-            read1.write_seq(ok1_f);
-            read2.write_seq(ok2_f);
-            stats1.update(type1, true);
-            stats2.update(type2, true);
-        } else {
-            stats1.update(type1, false);
-            stats2.update(type2, false);
-            if (type1 == ReadType::ok) {
-                read1.write_seq(se1_f);
-                read2.update_id(type2);
-                read2.write_seq(bad2_f);
-            } else if (type2 == ReadType::ok) { 
-                read1.update_id(type1);
-                read1.write_seq(bad1_f);
-                read2.write_seq(se2_f);
-            } else {
-                read1.update_id(type1);
-                read2.update_id(type2);
-                read1.write_seq(bad1_f);
-                read2.write_seq(bad2_f);
-            }
-        }
-    }
 }
 
 std::string basename(std::string const & path)
@@ -159,17 +206,18 @@ std::string basename(std::string const & path)
 
 void print_help() 
 {
-    std::cerr << "Usage:\n./rm_reads [-i raw_data.fastq | -1 raw_data1.fastq -2 raw_data2.fastq] -o output_dir --polyG 13 --length 50 --adapters adapters.dat --dust_cutoff cutoff --dust_k k -e 1 -N\n"
+    std::cerr << "Usage:\n./rm_reads <-i raw_data.fastq | -1 raw_data1.fastq -2 raw_data2.fastq> --adapters adapters.dat [-o output_dir --polyG POLYG --length LENGTH_CUTOFF --dust_cutoff cutoff --dust_k k -errors 0 -filterN]\n"
         << "\nOptions:\n"
         << "\t-i\t\tinput file \n"
         << "\t-1\t\tfirst input file for paired reads\n"
         << "\t-2\t\tsecond input file for paired reads\n"
-        << "\t-o\t\toutput directory\n"
-        << "\t--polyG, -p\tlength of polyG/polyC tails\n"
+        << "\t-o\t\toutput directory (current directory by default)\n"
+        << "\t--polyG, -p\tlength of polyG/polyC tails (13 by default)\n"
+        << "\t--length, -l\tminimum length cutoff (50 by default)\n"
         << "\t--adapters, -a\tfile with adapter kmers\n"
-        << "\t--dust_k, -k\twindow size for dust filter\n"
-        << "\t--dust_cutoff, -c\tcutoff by dust score\n"
-        << "\t--errors, -e\tmaximum error count in match, possible values - 1, 2\n"
+        << "\t--dust_k, -k\twindow size for dust filter (not used by default)\n"
+        << "\t--dust_cutoff, -c\tcutoff by dust score (not used by default)\n"
+        << "\t--errors, -e\tmaximum error count in match, possible values - 0, 1, 2 (by default 0)\n"
         << "\t--filterN, -N\tallow filter by N's in reads" << std::endl;
 }
 
@@ -181,12 +229,9 @@ int main(int argc, char ** argv)
     std::string kmers, reads, out_dir;
     std::string reads1, reads2;
     char rez = 0;
-    int length = 50;
-    int polyG = 13;
-    int dust_k = 4;
-    int dust_cutoff = 0;
-    int errors = 0;
+    int polyG = POLYG;
     bool filterN = false;
+    FilterCmd cmd;
 
     const struct option long_options[] = {
         {"help", no_argument, NULL, 'h'},
@@ -203,7 +248,7 @@ int main(int argc, char ** argv)
     while ((rez = getopt_long(argc, argv, "hN1:2:l:p:a:i:o:e:", long_options, NULL)) != -1) {
         switch (rez) {
         case 'l':
-            length = std::atoi(optarg);
+            cmd.length = std::atoi(optarg);
             break;
         case 'p':
             polyG = std::atoi(optarg);
@@ -225,13 +270,13 @@ int main(int argc, char ** argv)
             out_dir = optarg;
             break;
         case 'c':
-            dust_cutoff = std::atoi(optarg);
+            cmd.dust_cutoff = std::atoi(optarg);
             break;
         case 'k':
-            dust_k = std::atoi(optarg);
+            cmd.dust_k = std::atoi(optarg);
             break;
         case 'e':
-            errors = std::atoi(optarg);
+            cmd.errors = std::atoi(optarg);
             break;
         case 'N':
             filterN = true;
@@ -243,14 +288,18 @@ int main(int argc, char ** argv)
         }
     }
 
-    if (errors < 0 || errors > 2) {
-        std::cerr << "possible errors count are 0, 1, 2" << std::endl;
+    if (cmd.errors < 0 || cmd.errors > 2) {
+        std::cerr << "Possible errors count are 0, 1, 2" << std::endl;
         return -1;
     }
 
-    if (kmers.empty() || out_dir.empty() || (
-            reads.empty() &&
+    if (out_dir.empty()) {
+        out_dir = ".";
+    }
+
+    if (kmers.empty() || (reads.empty() &&
             (reads1.empty() || reads2.empty()))) {
+        std::cerr << "Please, specify reads and kmers files" << std::endl;
         print_help();
         return -1;
     }
@@ -262,23 +311,19 @@ int main(int argc, char ** argv)
         return -1;
     }
 
-    init_type_names(length, polyG, dust_k, dust_cutoff);
+    init_type_names(length, polyG, cmd.dust_k, cmd.dust_cutoff);
 
     build_patterns(kmers_f, patterns, polyG, filterN);
-
-/*
-    for (std::vector <std::string> ::iterator it = patterns.begin(); it != patterns.end(); ++it) {
-        std::cout << *it << std::endl;
-    }
-    */
 
     if (patterns.empty()) {
         std::cerr << "patterns are empty" << std::endl;
         return -1;
     }
 
-    build_trie(root, patterns, errors);
+    build_trie(root, patterns, cmd.errors);
 	add_failures(root);
+
+    cmd.root = &root;
 
     if (!reads.empty()) {
         std::string reads_base = basename(reads);
@@ -287,22 +332,25 @@ int main(int argc, char ** argv)
         std::ofstream bad_f((out_dir + "/" + reads_base + ".filtered.fastq").c_str(), std::ofstream::out);
 
         if (!reads_f.good()) {
-            std::cerr << "Cannot open reads file" << std::endl;
+            std::cerr << "Cannot open reads file, please, make sure that it exists" << std::endl;
             print_help();
             return -1;
         }
 
         if (!ok_f.good() || !bad_f.good()) {
-            std::cerr << "Cannot open output file" << std::endl;
+            std::cerr << "Cannot open output files, please, make sure that output directory exists and you can write there" << std::endl;
             print_help();
             return -1;
         }
 
-        Stats stats(reads);
+        cmd.stats1 = Stats(reads);
+        cmd.reads1_fp = &reads_f;
+        cmd.ok1_fp = &ok_f;
+        cmd.bad1_fp = &bad_f;
 
-        filter_single_reads(reads_f, ok_f, bad_f, stats, &root, patterns, length, dust_k, dust_cutoff, errors);
+        cmd.filter_reads(patterns);
 
-        std::cout << stats;
+        std::cout << cmd.stats1;
 
         ok_f.close();
         bad_f.close();
@@ -326,28 +374,33 @@ int main(int argc, char ** argv)
                             std::ofstream::out);
 
         if (!reads1_f.good() || !reads2_f.good()) {
-            std::cerr << "reads file is bad" << std::endl;
+            std::cerr << "Cannot open reads file, please, make sure that it exists" << std::endl;
             print_help();
             return -1;
         }
 
         if (!ok1_f.good() || !ok2_f.good() || !bad1_f.good() || !bad2_f.good() ||
                 !se1_f.good() || !se2_f.good()) {
-            std::cerr << "out file is bad" << std::endl;
+            std::cerr << "Cannot open output files, please, make sure that output directory exists and you can write there" << std::endl;
             print_help();
             return -1;
         }
 
-        Stats stats1(reads1);
-        Stats stats2(reads2);
+        cmd.stats1 = Stats(reads1);
+        cmd.stats2 = Stats(reads2);
+        cmd.reads1_fp = &reads1_f;
+        cmd.reads2_fp = &reads2_f;
+        cmd.ok1_fp = &ok1_f;
+        cmd.ok2_fp = &ok2_f;
+        cmd.se1_fp = &se1_f;
+        cmd.se2_fp = &se2_f;
+        cmd.bad1_fp = &bad1_f;
+        cmd.bad2_fp = &bad2_f;
 
-        filter_paired_reads(reads1_f, reads2_f, ok1_f, ok2_f,
-                            bad1_f, bad2_f, se1_f, se2_f,
-                            stats1, stats2,
-                            &root, patterns, length, dust_k, dust_cutoff, errors);
+        cmd.filter_reads(patterns);
 
-        std::cout << stats1;
-        std::cout << stats2;
+        std::cout << cmd.stats1;
+        std::cout << cmd.stats2;
 
         ok1_f.close();
         ok2_f.close();
@@ -356,4 +409,5 @@ int main(int argc, char ** argv)
         reads1_f.close();
         reads2_f.close();
     }
+    return 0;
 }

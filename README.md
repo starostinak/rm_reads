@@ -1,28 +1,29 @@
 Description
 ----------------------
 
-A tool for filtering reads by given kmers set. Initially created to filter reads with primers and adapters from a large datasets.
+A tool for filtering reads by given kmers set. Initially created to filter reads with primers and adapters from large datasets.
 
 Requirements
 ----------------------
 
 - make
-- gcc 4.7 at least
+- gcc 4.7 and higher
 
 Usage
 ----------------------
 
-./rm_reads [-i raw_data.fastq | -1 raw_data1.fastq -2 raw_data2.fastq] -o output_dir --polyG 13 --length 50 --adapters adapters.dat --dust_cutoff cutoff --dust_k k -e 1 -N
+./rm_reads <-i raw_data.fastq | -1 raw_data1.fastq -2 raw_data2.fastq> --adapters adapters.dat [-o output_dir --polyG 13 --length 50 --dust_cutoff cutoff --dust_k k -errors 0 -filterN]
 
     -i              input file
     -1              first input file for paired reads
     -2              second input file for paired reads
-    -o              output directory
-    --polyG, -p     length of polyG/polyC tails
+    -o              output directory (current directory by default)
+    --polyG, -p     length of polyG/polyC tails (13 by default)
+    --length, -l    minimum length cutoff (50 by default)
     --adapters, -a  file with adapter kmers
-    --dust_k, -k    window size for dust filter
-    --dust_cutoff, -c   cutoff by dust score
-    --errors, -e    maximum error count in match, possible values - 1, 2
+    --dust_k, -k    window size for dust filter (not used by default)
+    --dust_cutoff, -c   cutoff by dust score (not used by default)
+    --errors, -e    maximum error count in match, possible values - 0, 1, 2 (0 by default)
     --filterN, -N   allow filter by N's in reads
 
 Input files

@@ -28,7 +28,7 @@ std::ostream & operator << (std::ostream & out, const Stats & stats)
             bad += it->second;
         }
     }
-    out << "\t" << "fraction" << (double)(stats.complete - bad)/stats.complete << std::endl;
+    out << "\t" << "fraction " << (double)(stats.complete - bad)/stats.complete << std::endl;
     if (stats.pe) {
         out << "\t" << "se\t" << stats.se << std::endl;
         out << "\t" << "pe\t" << stats.pe << std::endl;
